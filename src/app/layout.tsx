@@ -1,21 +1,22 @@
 import type { Metadata } from "next";
-import { Space_Mono, Inter } from "next/font/google";
+import { Orbitron, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const spaceMono = Space_Mono({
-  weight: ["400", "700"],
-  variable: "--font-mono",
+const orbitron = Orbitron({
+  weight: ["400", "500", "600", "700", "800", "900"],
+  variable: "--font-display",
   subsets: ["latin"],
 });
 
-const inter = Inter({
-  variable: "--font-sans",
+const jetbrains = JetBrains_Mono({
+  weight: ["400", "500", "700"],
+  variable: "--font-code",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Indie Radar - Trending Games Scanner",
-  description: "Find viral indie games before they blow up. Fresh releases, upcoming hype, and news buzz.",
+  title: "INDIE RADAR // Trending Games Scanner",
+  description: "Classified intel on viral indie games. Find them before they blow up.",
 };
 
 export default function RootLayout({
@@ -25,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${spaceMono.variable} font-sans antialiased`}>
+      <body className={`${orbitron.variable} ${jetbrains.variable} antialiased`}>
         {children}
       </body>
     </html>
