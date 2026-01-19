@@ -1,5 +1,74 @@
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import * as cheerio from 'cheerio';
+
+// ============================================
+// RATE LIMITING & CACHING (in-memory, no Redis)
+// ============================================
+
+interface CachedData {
+  data: GameResponse;
+  timestamp: number;
+}
+
+interface RateLimitEntry {
+  count: number;
+  resetTime: number;
+}
+
+// Cache the full response for 5 minutes
+const CACHE_TTL = 5 * 60 * 1000;
+let cachedResponse: CachedData | null = null;
+
+// Rate limit: 10 requests per minute per IP
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAX = 10;
+const rateLimitMap = new Map<string, RateLimitEntry>();
+
+// Clean up old rate limit entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitMap.entries()) {
+    if (now > entry.resetTime) {
+      rateLimitMap.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
+function getClientIP(headersList: Headers): string {
+  // Check various headers for the real IP
+  const forwarded = headersList.get('x-forwarded-for');
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  const realIP = headersList.get('x-real-ip');
+  if (realIP) {
+    return realIP;
+  }
+  return 'unknown';
+}
+
+function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetIn: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now > entry.resetTime) {
+    // New window
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return { allowed: true, remaining: RATE_LIMIT_MAX - 1, resetIn: RATE_LIMIT_WINDOW };
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return { allowed: false, remaining: 0, resetIn: entry.resetTime - now };
+  }
+
+  entry.count++;
+  return { allowed: true, remaining: RATE_LIMIT_MAX - entry.count, resetIn: entry.resetTime - now };
+}
+
+// ============================================
+// DATA FETCHING
+// ============================================
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -14,8 +83,8 @@ function isRecentRelease(releaseText: string): boolean {
 
   const now = new Date();
   const formats = [
-    /^([A-Za-z]{3}) (\d{1,2}), (\d{4})$/, // "Jan 15, 2026"
-    /^(\d{1,2}) ([A-Za-z]{3}), (\d{4})$/,  // "15 Jan, 2026"
+    /^([A-Za-z]{3}) (\d{1,2}), (\d{4})$/,
+    /^(\d{1,2}) ([A-Za-z]{3}), (\d{4})$/,
   ];
 
   for (const fmt of formats) {
@@ -59,11 +128,20 @@ interface ItchGame {
   url: string;
 }
 
+interface GameResponse {
+  generated: string;
+  freshReleases: Game[];
+  upcoming: UpcomingGame[];
+  news: NewsArticle[];
+  itch: ItchGame[];
+  cached?: boolean;
+}
+
 async function getFreshReleases(): Promise<Game[]> {
   try {
     const res = await fetch(
       'https://store.steampowered.com/search/?sort_by=Released_DESC&tags=492&category1=998&ndl=1',
-      { headers: HEADERS, next: { revalidate: 300 } }
+      { headers: HEADERS }
     );
     const html = await res.text();
     const $ = cheerio.load(html);
@@ -104,7 +182,7 @@ async function getUpcomingHype(): Promise<UpcomingGame[]> {
   try {
     const res = await fetch(
       'https://store.steampowered.com/search/?filter=popularwishlist&tags=492&category1=998',
-      { headers: HEADERS, next: { revalidate: 300 } }
+      { headers: HEADERS }
     );
     const html = await res.text();
     const $ = cheerio.load(html);
@@ -134,7 +212,7 @@ async function getNewsBuzz(): Promise<NewsArticle[]> {
   try {
     const res = await fetch(
       'https://news.google.com/rss/search?q=indie+game+viral+OR+trending+OR+%22new+indie%22&hl=en-US&gl=US&ceid=US:en',
-      { headers: HEADERS, next: { revalidate: 300 } }
+      { headers: HEADERS }
     );
     const xml = await res.text();
     const $ = cheerio.load(xml, { xmlMode: true });
@@ -161,7 +239,7 @@ async function getItchTrending(): Promise<ItchGame[]> {
   try {
     const res = await fetch(
       'https://itch.io/games/new-and-popular',
-      { headers: HEADERS, next: { revalidate: 300 } }
+      { headers: HEADERS }
     );
     const html = await res.text();
     const $ = cheerio.load(html);
@@ -192,7 +270,7 @@ async function getItchTrending(): Promise<ItchGame[]> {
   }
 }
 
-export async function GET() {
+async function fetchAllData(): Promise<GameResponse> {
   const [freshReleases, upcoming, news, itch] = await Promise.all([
     getFreshReleases(),
     getUpcomingHype(),
@@ -200,11 +278,67 @@ export async function GET() {
     getItchTrending(),
   ]);
 
-  return NextResponse.json({
+  return {
     generated: new Date().toISOString(),
     freshReleases,
     upcoming,
     news,
     itch,
+  };
+}
+
+// ============================================
+// API ROUTE
+// ============================================
+
+export async function GET() {
+  // Get client IP for rate limiting
+  const headersList = await headers();
+  const clientIP = getClientIP(headersList);
+
+  // Check rate limit
+  const rateLimit = checkRateLimit(clientIP);
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Try again later.', resetIn: Math.ceil(rateLimit.resetIn / 1000) },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(Math.ceil(rateLimit.resetIn / 1000)),
+          'Retry-After': String(Math.ceil(rateLimit.resetIn / 1000)),
+        },
+      }
+    );
+  }
+
+  // Check cache
+  const now = Date.now();
+  if (cachedResponse && (now - cachedResponse.timestamp) < CACHE_TTL) {
+    return NextResponse.json(
+      { ...cachedResponse.data, cached: true },
+      {
+        headers: {
+          'X-RateLimit-Remaining': String(rateLimit.remaining),
+          'X-Cache': 'HIT',
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60',
+        },
+      }
+    );
+  }
+
+  // Fetch fresh data
+  const data = await fetchAllData();
+
+  // Update cache
+  cachedResponse = { data, timestamp: now };
+
+  return NextResponse.json(data, {
+    headers: {
+      'X-RateLimit-Remaining': String(rateLimit.remaining),
+      'X-Cache': 'MISS',
+      'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60',
+    },
   });
 }
