@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import dynamic from 'next/dynamic';
+
+const Scene = dynamic(() => import('./components/Scene'), { ssr: false });
 
 interface Game {
   title: string;
@@ -37,48 +40,20 @@ interface GameData {
   itch: ItchGame[];
 }
 
-// Boot sequence messages
-const bootMessages = [
-  'INITIALIZING RADAR SYSTEMS...',
-  'CONNECTING TO STEAM DATABASE...',
-  'SCANNING ITCH.IO FREQUENCIES...',
-  'INTERCEPTING NEWS FEEDS...',
-  'DECRYPTING TREND DATA...',
-  'SYSTEMS ONLINE',
-];
-
 export default function Home() {
   const [data, setData] = useState<GameData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [bootComplete, setBootComplete] = useState(false);
-  const [bootIndex, setBoot] = useState(0);
   const [scanProgress, setScanProgress] = useState(0);
-
-  // Boot sequence
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setBoot((prev) => {
-        if (prev >= bootMessages.length - 1) {
-          clearInterval(timer);
-          setTimeout(() => setBootComplete(true), 500);
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, 400);
-    return () => clearInterval(timer);
-  }, []);
 
   const fetchGames = async () => {
     setLoading(true);
     setError(null);
     setScanProgress(0);
 
-    // Fake progress while loading
     const progressInterval = setInterval(() => {
-      setScanProgress((prev) => Math.min(prev + Math.random() * 15, 90));
-    }, 200);
+      setScanProgress((prev) => Math.min(prev + Math.random() * 12, 90));
+    }, 150);
 
     try {
       const res = await fetch('/api/games');
@@ -88,9 +63,9 @@ export default function Home() {
       setTimeout(() => {
         setData(json);
         setLoading(false);
-      }, 500);
+      }, 600);
     } catch {
-      setError('CONNECTION LOST. RETRY SCAN.');
+      setError('SIGNAL LOST');
       setLoading(false);
     } finally {
       clearInterval(progressInterval);
@@ -98,329 +73,337 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#050508] text-[#e0e0e8] relative overflow-hidden crt-flicker">
-      {/* Overlays */}
-      <div className="noise-overlay" />
-      <div className="scanlines" />
+    <main className="min-h-screen bg-[#030306] text-white relative overflow-x-hidden">
+      {/* 3D Background */}
+      <div className="fixed inset-0 z-0">
+        <Suspense fallback={null}>
+          <Scene scanning={loading} />
+        </Suspense>
+      </div>
 
-      {/* Grid background */}
-      <div className="fixed inset-0 grid-bg opacity-50" />
+      {/* Gradient overlays */}
+      <div className="fixed inset-0 z-10 pointer-events-none bg-gradient-to-b from-transparent via-transparent to-[#030306]" />
+      <div className="fixed inset-0 z-10 pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_0%,#030306_70%)]" />
 
-      {/* Vignette */}
-      <div className="pointer-events-none fixed inset-0 z-30 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.7)_100%)]" />
-
-      {/* Boot sequence */}
-      <AnimatePresence>
-        {!bootComplete && (
+      {/* Content */}
+      <div className="relative z-20">
+        {/* Hero Section */}
+        <section className="min-h-screen flex flex-col items-center justify-center px-6 relative">
+          {/* Status bar */}
           <motion.div
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-[#050508] flex items-center justify-center"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="absolute top-8 left-8 right-8 flex justify-between items-center"
           >
-            <div className="font-mono text-[#00ff41] text-sm space-y-1">
-              {bootMessages.slice(0, bootIndex + 1).map((msg, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className={i === bootIndex ? 'cursor-blink' : ''}
-                >
-                  <span className="text-[#3a3a4a] mr-2">[{String(i).padStart(2, '0')}]</span>
-                  {msg}
-                </motion.div>
-              ))}
+            <div className="flex items-center gap-6 font-mono text-xs">
+              <StatusPill label="STEAM" color="#00ff41" />
+              <StatusPill label="ITCH" color="#00f0ff" />
+              <StatusPill label="NEWS" color="#ff00aa" />
+            </div>
+            <div className="font-mono text-xs text-white/30">
+              v2.0.26 // RADAR SYSTEMS
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="relative z-10 max-w-6xl mx-auto px-6 py-16">
-        {/* Header */}
-        <motion.header
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: bootComplete ? 1 : 0, y: bootComplete ? 0 : -50 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          className="text-center mb-20"
-        >
-          {/* Decorative top line */}
-          <div className="flex items-center justify-center gap-4 mb-8">
-            <div className="h-px w-20 bg-gradient-to-r from-transparent to-[#00ff41]" />
-            <span className="text-[#3a3a4a] font-mono text-xs tracking-[0.3em]">SYS.ONLINE</span>
-            <div className="h-px w-20 bg-gradient-to-l from-transparent to-[#00ff41]" />
-          </div>
 
           {/* Main title */}
-          <h1 className="glitch-text font-[family-name:var(--font-display)] font-black text-6xl md:text-8xl tracking-tight mb-4 text-[#00ff41]">
-            INDIE RADAR
-          </h1>
-
-          {/* Subtitle */}
-          <p className="font-mono text-[#3a3a4a] text-xs tracking-[0.4em] uppercase">
-            // CLASSIFIED TREND INTELLIGENCE //
-          </p>
-
-          {/* Status indicators */}
-          <div className="flex items-center justify-center gap-8 mt-8 font-mono text-xs">
-            <StatusIndicator label="STEAM" status="online" />
-            <StatusIndicator label="ITCH.IO" status="online" />
-            <StatusIndicator label="NEWS" status="online" />
-          </div>
-        </motion.header>
-
-        {/* Scan Button */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: bootComplete ? 1 : 0, scale: bootComplete ? 1 : 0.9 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="flex justify-center mb-16"
-        >
-          <button
-            onClick={fetchGames}
-            disabled={loading}
-            className="group relative"
-          >
-            {/* Outer glow ring */}
-            <div className={`absolute -inset-4 rounded-full bg-[#00ff41]/20 blur-xl transition-opacity duration-500 ${loading ? 'opacity-100 pulse-glow' : 'opacity-0 group-hover:opacity-50'}`} />
-
-            {/* Button */}
-            <div className={`relative px-16 py-6 border-2 border-[#00ff41] bg-[#050508] font-[family-name:var(--font-display)] text-lg uppercase tracking-[0.2em] transition-all duration-300 ${loading ? 'text-[#050508] bg-[#00ff41]' : 'text-[#00ff41] hover:bg-[#00ff41]/10'}`}>
-              {loading ? (
-                <span className="flex items-center gap-4">
-                  <RadarIcon />
-                  SCANNING...
-                </span>
-              ) : (
-                <span className="flex items-center gap-4">
-                  <span className="text-2xl">◉</span>
-                  INITIATE SCAN
-                </span>
-              )}
-            </div>
-
-            {/* Corner accents */}
-            <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-[#00ff41]" />
-            <div className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-[#00ff41]" />
-            <div className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-[#00ff41]" />
-            <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-[#00ff41]" />
-          </button>
-        </motion.div>
-
-        {/* Progress bar */}
-        <AnimatePresence>
-          {loading && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="max-w-md mx-auto mb-16"
-            >
-              <div className="flex justify-between font-mono text-xs text-[#3a3a4a] mb-2">
-                <span>SCANNING DATABASES</span>
-                <span>{Math.round(scanProgress)}%</span>
-              </div>
-              <div className="h-1 bg-[#1a1a24] overflow-hidden">
-                <motion.div
-                  className="h-full bg-[#00ff41]"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${scanProgress}%` }}
-                  transition={{ duration: 0.3 }}
-                />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {error && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center font-mono text-[#ff00aa] mb-8 p-4 border border-[#ff00aa]/30 bg-[#ff00aa]/5"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1, ease: 'easeOut' }}
+            className="text-center mb-12"
           >
-            ⚠ {error}
+            <h1 className="font-[family-name:var(--font-display)] text-7xl md:text-9xl font-black tracking-tighter bg-gradient-to-b from-white via-white to-white/20 bg-clip-text text-transparent">
+              INDIE
+              <br />
+              <span className="text-[#00ff41]">RADAR</span>
+            </h1>
+            <p className="mt-6 font-mono text-sm text-white/40 tracking-[0.3em]">
+              FIND THEM BEFORE THEY BLOW UP
+            </p>
           </motion.div>
-        )}
 
-        {/* Results */}
-        <AnimatePresence>
+          {/* Scan button */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <button
+              onClick={fetchGames}
+              disabled={loading}
+              className="group relative"
+            >
+              {/* Glow effect */}
+              <div className={`absolute -inset-1 bg-gradient-to-r from-[#00ff41] via-[#00f0ff] to-[#00ff41] rounded-full blur-lg transition-opacity duration-500 ${loading ? 'opacity-60 animate-pulse' : 'opacity-0 group-hover:opacity-40'}`} />
+
+              <div className={`relative px-12 py-5 rounded-full border backdrop-blur-sm font-[family-name:var(--font-display)] text-sm uppercase tracking-[0.2em] transition-all duration-300 ${loading ? 'bg-[#00ff41]/20 border-[#00ff41] text-[#00ff41]' : 'bg-white/5 border-white/20 text-white hover:bg-white/10 hover:border-white/40'}`}>
+                {loading ? (
+                  <span className="flex items-center gap-3">
+                    <LoadingSpinner />
+                    SCANNING
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-3">
+                    <span className="w-2 h-2 rounded-full bg-[#00ff41] shadow-[0_0_10px_#00ff41]" />
+                    INITIATE SCAN
+                  </span>
+                )}
+              </div>
+            </button>
+          </motion.div>
+
+          {/* Progress */}
+          <AnimatePresence>
+            {loading && (
+              <motion.div
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 300 }}
+                exit={{ opacity: 0 }}
+                className="mt-8"
+              >
+                <div className="flex justify-between font-mono text-xs text-white/30 mb-2">
+                  <span>SCANNING FREQUENCIES</span>
+                  <span>{Math.round(scanProgress)}%</span>
+                </div>
+                <div className="h-0.5 bg-white/10 rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-[#00ff41] to-[#00f0ff]"
+                    style={{ width: `${scanProgress}%` }}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Scroll indicator */}
           {data && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.5 }}
-              className="space-y-20"
+              transition={{ delay: 1 }}
+              className="absolute bottom-12 left-1/2 -translate-x-1/2"
             >
-              {/* Timestamp */}
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center font-mono text-xs text-[#3a3a4a]"
-              >
-                SCAN COMPLETE // {new Date(data.generated).toLocaleString()}
-              </motion.p>
-
-              {/* Fresh Releases */}
-              <Section
-                icon="◈"
-                title="FRESH INTEL"
-                subtitle="RELEASES // LAST 30 DAYS"
-                color="#00f0ff"
-                delay={0}
-              >
-                <div className="space-y-3">
-                  {data.freshReleases.filter(g => g.score >= 1).slice(0, 10).map((game, i) => (
-                    <GameCard key={i} game={game} index={i} />
-                  ))}
-                </div>
-
-                {data.freshReleases.filter(g => g.score === 0).length > 0 && (
-                  <div className="mt-8">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="h-px flex-1 bg-[#1a1a24]" />
-                      <span className="font-mono text-xs text-[#3a3a4a] tracking-wider">UNVERIFIED // NO REVIEWS</span>
-                      <div className="h-px flex-1 bg-[#1a1a24]" />
-                    </div>
-                    <div className="grid md:grid-cols-2 gap-2">
-                      {data.freshReleases.filter(g => g.score === 0).slice(0, 6).map((game, i) => (
-                        <motion.a
-                          key={i}
-                          href={game.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.5 + i * 0.05 }}
-                          className="block p-3 bg-[#0a0a10] border border-[#1a1a24] hover:border-[#00f0ff]/30 transition-colors font-mono text-sm group"
-                        >
-                          <span className="text-[#6a6a7a] group-hover:text-[#00f0ff] transition-colors">{game.title}</span>
-                          <span className="text-[#3a3a4a] ml-3 text-xs">{game.release}</span>
-                        </motion.a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </Section>
-
-              {/* Upcoming */}
-              <Section
-                icon="◎"
-                title="INCOMING"
-                subtitle="WISHLISTED // UNRELEASED"
-                color="#ffb800"
-                delay={0.2}
-              >
-                <div className="grid md:grid-cols-2 gap-3">
-                  {data.upcoming.map((game, i) => (
-                    <motion.a
-                      key={i}
-                      href={game.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 + i * 0.05 }}
-                      className="group block p-5 bg-[#0a0a10] border border-[#1a1a24] hover:border-[#ffb800]/50 transition-all relative overflow-hidden"
-                    >
-                      {/* Rank badge */}
-                      <div className="absolute top-0 right-0 bg-[#ffb800]/10 px-3 py-1 font-[family-name:var(--font-display)] text-[#ffb800] text-sm">
-                        #{i + 1}
-                      </div>
-
-                      <h4 className="font-[family-name:var(--font-display)] font-bold text-[#e0e0e8] group-hover:text-[#ffb800] transition-colors pr-12">
-                        {game.title}
-                      </h4>
-                      <p className="font-mono text-xs text-[#3a3a4a] mt-2 flex items-center gap-2">
-                        <span className="text-[#ffb800]">◷</span>
-                        {game.release}
-                      </p>
-                    </motion.a>
-                  ))}
-                </div>
-              </Section>
-
-              {/* News */}
-              <Section
-                icon="◆"
-                title="INTERCEPTED"
-                subtitle="NEWS // PRESS COVERAGE"
-                color="#ff00aa"
-                delay={0.4}
-              >
-                <div className="space-y-2">
-                  {data.news.map((article, i) => (
-                    <motion.a
-                      key={i}
-                      href={article.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.5 + i * 0.05 }}
-                      className="group block p-4 bg-[#0a0a10] border border-[#1a1a24] hover:border-[#ff00aa]/30 transition-all"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="text-[#ff00aa] font-mono text-xs shrink-0">[{article.source.slice(0, 12)}]</span>
-                        <p className="text-[#e0e0e8] text-sm group-hover:text-[#ff00aa] transition-colors">{article.title}</p>
-                      </div>
-                    </motion.a>
-                  ))}
-                </div>
-              </Section>
-
-              {/* Itch.io */}
-              <Section
-                icon="◇"
-                title="ITCH.IO"
-                subtitle="UNDERGROUND // TRENDING"
-                color="#00ff41"
-                delay={0.6}
-              >
-                <div className="grid md:grid-cols-2 gap-3">
-                  {data.itch.map((game, i) => (
-                    <motion.a
-                      key={i}
-                      href={game.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.7 + i * 0.05 }}
-                      className="group block p-4 bg-[#0a0a10] border border-[#1a1a24] hover:border-[#00ff41]/50 transition-all gradient-border"
-                    >
-                      <h4 className="font-[family-name:var(--font-display)] font-bold text-[#e0e0e8] group-hover:text-[#00ff41] transition-colors">
-                        {game.title}
-                      </h4>
-                      <p className="font-mono text-xs text-[#3a3a4a] mt-1">
-                        <span className="text-[#00ff41]">@</span> {game.author}
-                      </p>
-                    </motion.a>
-                  ))}
-                </div>
-              </Section>
-
-              {/* Footer */}
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1 }}
-                className="text-center pt-16 border-t border-[#1a1a24]"
+                animate={{ y: [0, 8, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="flex flex-col items-center gap-2 text-white/30"
               >
-                <p className="font-mono text-xs text-[#3a3a4a]">
-                  INDIE RADAR // FIND THEM BEFORE THEY BLOW UP
-                </p>
+                <span className="font-mono text-xs tracking-wider">SCROLL</span>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="opacity-50">
+                  <path d="M10 4L10 16M10 16L16 10M10 16L4 10" stroke="currentColor" strokeWidth="2" />
+                </svg>
               </motion.div>
             </motion.div>
           )}
+        </section>
+
+        {/* Results */}
+        <AnimatePresence>
+          {data && (
+            <motion.section
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="relative z-20 px-6 pb-24"
+            >
+              {/* Bento Grid */}
+              <div className="max-w-7xl mx-auto">
+                {/* Timestamp */}
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center font-mono text-xs text-white/20 mb-12"
+                >
+                  SCAN COMPLETE // {new Date(data.generated).toLocaleString()}
+                </motion.p>
+
+                {/* Grid Layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 auto-rows-min">
+
+                  {/* Fresh Releases - Large card spanning 8 cols */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="lg:col-span-8 row-span-2"
+                  >
+                    <GlassCard>
+                      <CardHeader icon="◈" title="FRESH INTEL" subtitle="Last 30 days" color="#00f0ff" />
+                      <div className="space-y-2 mt-6">
+                        {data.freshReleases.filter(g => g.score >= 1).slice(0, 6).map((game, i) => (
+                          <GameRow key={i} game={game} index={i} />
+                        ))}
+                      </div>
+                    </GlassCard>
+                  </motion.div>
+
+                  {/* Stats card */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="lg:col-span-4"
+                  >
+                    <GlassCard className="h-full">
+                      <div className="flex flex-col h-full justify-between">
+                        <div>
+                          <p className="font-mono text-xs text-white/40 mb-2">GAMES FOUND</p>
+                          <p className="font-[family-name:var(--font-display)] text-6xl font-black text-[#00ff41]">
+                            {data.freshReleases.length}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mt-6">
+                          <StatBlock label="HOT" value={data.freshReleases.filter(g => g.score === 2).length} color="#00f0ff" />
+                          <StatBlock label="NEW" value={data.freshReleases.filter(g => g.score === 0).length} color="#ffb800" />
+                        </div>
+                      </div>
+                    </GlassCard>
+                  </motion.div>
+
+                  {/* Upcoming - Vertical list */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="lg:col-span-4"
+                  >
+                    <GlassCard>
+                      <CardHeader icon="◎" title="INCOMING" subtitle="Most wishlisted" color="#ffb800" />
+                      <div className="space-y-3 mt-6">
+                        {data.upcoming.slice(0, 5).map((game, i) => (
+                          <a
+                            key={i}
+                            href={game.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group flex items-center gap-3 p-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
+                          >
+                            <span className="font-[family-name:var(--font-display)] text-[#ffb800]/50 text-sm">#{i + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm text-white/80 group-hover:text-[#ffb800] transition-colors truncate">
+                                {game.title}
+                              </p>
+                              <p className="font-mono text-xs text-white/30">{game.release}</p>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </GlassCard>
+                  </motion.div>
+
+                  {/* News - Wide card */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="lg:col-span-8"
+                  >
+                    <GlassCard>
+                      <CardHeader icon="◆" title="INTERCEPTED" subtitle="News & press" color="#ff00aa" />
+                      <div className="grid md:grid-cols-2 gap-3 mt-6">
+                        {data.news.slice(0, 6).map((article, i) => (
+                          <a
+                            key={i}
+                            href={article.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group p-3 rounded-lg bg-white/[0.02] hover:bg-[#ff00aa]/10 transition-colors"
+                          >
+                            <span className="font-mono text-xs text-[#ff00aa]/60">[{article.source.slice(0, 15)}]</span>
+                            <p className="text-sm text-white/70 group-hover:text-white mt-1 line-clamp-2">
+                              {article.title}
+                            </p>
+                          </a>
+                        ))}
+                      </div>
+                    </GlassCard>
+                  </motion.div>
+
+                  {/* Itch.io */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="lg:col-span-4"
+                  >
+                    <GlassCard>
+                      <CardHeader icon="◇" title="ITCH.IO" subtitle="Underground" color="#00ff41" />
+                      <div className="space-y-2 mt-6">
+                        {data.itch.slice(0, 5).map((game, i) => (
+                          <a
+                            key={i}
+                            href={game.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group block p-3 rounded-lg bg-white/[0.02] hover:bg-[#00ff41]/10 transition-colors"
+                          >
+                            <p className="font-medium text-sm text-white/80 group-hover:text-[#00ff41] transition-colors">
+                              {game.title}
+                            </p>
+                            <p className="font-mono text-xs text-white/30">@{game.author}</p>
+                          </a>
+                        ))}
+                      </div>
+                    </GlassCard>
+                  </motion.div>
+
+                  {/* Unreviewed games */}
+                  {data.freshReleases.filter(g => g.score === 0).length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 40 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.6 }}
+                      className="lg:col-span-12"
+                    >
+                      <GlassCard>
+                        <CardHeader icon="⬡" title="UNVERIFIED" subtitle="No reviews yet — be first" color="#666" />
+                        <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-3 mt-6">
+                          {data.freshReleases.filter(g => g.score === 0).slice(0, 8).map((game, i) => (
+                            <a
+                              key={i}
+                              href={game.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group p-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/10 transition-all"
+                            >
+                              <p className="font-medium text-sm text-white/60 group-hover:text-white transition-colors truncate">
+                                {game.title}
+                              </p>
+                              <p className="font-mono text-xs text-white/20 mt-1">{game.release}</p>
+                            </a>
+                          ))}
+                        </div>
+                      </GlassCard>
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.8 }}
+                  className="text-center mt-16 pt-8 border-t border-white/5"
+                >
+                  <p className="font-mono text-xs text-white/20">
+                    INDIE RADAR // CLASSIFIED TREND INTELLIGENCE
+                  </p>
+                </motion.div>
+              </div>
+            </motion.section>
+          )}
         </AnimatePresence>
 
-        {/* Empty state */}
-        {!data && !loading && bootComplete && (
+        {/* Error */}
+        {error && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center font-mono py-32"
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50"
           >
-            <div className="text-6xl text-[#1a1a24] mb-4">◉</div>
-            <p className="text-[#3a3a4a] tracking-wider">AWAITING SCAN COMMAND</p>
+            <div className="px-6 py-3 rounded-full bg-[#ff00aa]/20 border border-[#ff00aa]/30 backdrop-blur-sm">
+              <p className="font-mono text-sm text-[#ff00aa]">⚠ {error}</p>
+            </div>
           </motion.div>
         )}
       </div>
@@ -428,57 +411,54 @@ export default function Home() {
   );
 }
 
-function StatusIndicator({ label, status }: { label: string; status: 'online' | 'offline' }) {
+function StatusPill({ label, color }: { label: string; color: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <div className={`w-2 h-2 rounded-full ${status === 'online' ? 'bg-[#00ff41] shadow-[0_0_8px_#00ff41]' : 'bg-[#ff00aa]'}`} />
-      <span className="text-[#6a6a7a]">{label}</span>
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 backdrop-blur-sm border border-white/10">
+      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}` }} />
+      <span className="text-white/50">{label}</span>
     </div>
   );
 }
 
-function RadarIcon() {
+function LoadingSpinner() {
   return (
-    <div className="relative w-6 h-6">
-      <div className="absolute inset-0 border-2 border-current rounded-full" />
-      <div className="absolute inset-1 border border-current rounded-full opacity-50" />
-      <div className="absolute top-1/2 left-1/2 w-3 h-0.5 bg-current origin-left radar-sweep" style={{ marginTop: '-1px', marginLeft: '-1px' }} />
-    </div>
+    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+    </svg>
   );
 }
 
-function Section({ icon, title, subtitle, color, delay, children }: {
-  icon: string;
-  title: string;
-  subtitle: string;
-  color: string;
-  delay: number;
-  children: React.ReactNode;
-}) {
+function GlassCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay }}
-    >
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <span className="text-4xl" style={{ color }}>{icon}</span>
-        <div>
-          <h2 className="font-[family-name:var(--font-display)] font-black text-2xl tracking-tight" style={{ color }}>
-            {title}
-          </h2>
-          <p className="font-mono text-xs text-[#3a3a4a] tracking-[0.2em]">{subtitle}</p>
-        </div>
-        <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a24]" style={{ backgroundImage: `linear-gradient(to right, ${color}33, transparent)` }} />
-      </div>
-
+    <div className={`p-6 rounded-2xl bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] ${className}`}>
       {children}
-    </motion.section>
+    </div>
   );
 }
 
-function GameCard({ game, index }: { game: Game; index: number }) {
+function CardHeader({ icon, title, subtitle, color }: { icon: string; title: string; subtitle: string; color: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-2xl" style={{ color }}>{icon}</span>
+      <div>
+        <h2 className="font-[family-name:var(--font-display)] font-bold text-lg tracking-tight" style={{ color }}>{title}</h2>
+        <p className="font-mono text-xs text-white/30">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+function StatBlock({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="p-3 rounded-xl bg-white/[0.02]">
+      <p className="font-mono text-xs text-white/40 mb-1">{label}</p>
+      <p className="font-[family-name:var(--font-display)] text-2xl font-bold" style={{ color }}>{value}</p>
+    </div>
+  );
+}
+
+function GameRow({ game, index }: { game: Game; index: number }) {
   const isHot = game.score === 2;
 
   return (
@@ -486,35 +466,32 @@ function GameCard({ game, index }: { game: Game; index: number }) {
       href={game.url}
       target="_blank"
       rel="noopener noreferrer"
-      initial={{ opacity: 0, x: -30 }}
+      initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 0.2 + index * 0.05, duration: 0.4 }}
-      className={`group block p-5 border transition-all relative overflow-hidden ${
-        isHot
-          ? 'bg-gradient-to-r from-[#00f0ff]/5 to-transparent border-[#00f0ff]/30 hover:border-[#00f0ff]'
-          : 'bg-[#0a0a10] border-[#1a1a24] hover:border-[#00f0ff]/50'
-      }`}
+      transition={{ delay: 0.1 + index * 0.05 }}
+      className={`group flex items-center gap-4 p-4 rounded-xl transition-all ${isHot ? 'bg-[#00f0ff]/5 hover:bg-[#00f0ff]/10' : 'bg-white/[0.02] hover:bg-white/[0.05]'}`}
     >
       {/* Hot indicator */}
       {isHot && (
-        <div className="absolute top-0 left-0 bottom-0 w-1 bg-[#00f0ff] shadow-[0_0_10px_#00f0ff]" />
+        <div className="w-1 h-8 rounded-full bg-[#00f0ff] shadow-[0_0_10px_#00f0ff]" />
       )}
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0 pl-2">
-          <div className="flex items-center gap-3">
-            {isHot && <span className="text-[#00f0ff] text-lg">▲</span>}
-            <h3 className="font-[family-name:var(--font-display)] font-bold text-[#e0e0e8] group-hover:text-[#00f0ff] transition-colors">
-              {game.title}
-            </h3>
-          </div>
-          <div className="flex items-center gap-6 mt-3 font-mono text-xs">
-            <span className="text-[#3a3a4a]">{game.release}</span>
-            <span className={isHot ? 'text-[#00f0ff]' : 'text-[#6a6a7a]'}>{game.reviews}</span>
-          </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          {isHot && <span className="text-[#00f0ff] text-xs">▲ HOT</span>}
+          <h3 className="font-medium text-white/90 group-hover:text-[#00f0ff] transition-colors truncate">
+            {game.title}
+          </h3>
         </div>
-        <span className="text-[#1a1a24] group-hover:text-[#00f0ff] transition-colors text-xl">→</span>
+        <div className="flex items-center gap-4 mt-1 font-mono text-xs">
+          <span className="text-white/30">{game.release}</span>
+          <span className={isHot ? 'text-[#00f0ff]' : 'text-white/50'}>{game.reviews}</span>
+        </div>
       </div>
+
+      <svg className="w-5 h-5 text-white/20 group-hover:text-[#00f0ff] transition-colors" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M5.22 14.78a.75.75 0 001.06 0l7.22-7.22v5.69a.75.75 0 001.5 0v-7.5a.75.75 0 00-.75-.75h-7.5a.75.75 0 000 1.5h5.69l-7.22 7.22a.75.75 0 000 1.06z" clipRule="evenodd" />
+      </svg>
     </motion.a>
   );
 }

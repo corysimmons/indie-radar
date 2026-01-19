@@ -1,23 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --bg-deep: #050508;
-  --bg-card: #0a0a10;
-  --bg-card-hover: #0f0f18;
+  --bg-deep: #030306;
   --phosphor: #00ff41;
   --cyan: #00f0ff;
   --amber: #ffb800;
   --magenta: #ff00aa;
-  --text-dim: #3a3a4a;
-  --text-mid: #6a6a7a;
-  --text-bright: #e0e0e8;
-  --border: #1a1a24;
-  --border-glow: #00ff4133;
 }
 
 @theme inline {
   --color-background: var(--bg-deep);
-  --color-foreground: var(--text-bright);
+  --color-foreground: #ffffff;
   --font-sans: var(--font-display);
   --font-mono: var(--font-code);
 }
@@ -37,7 +30,7 @@
 
 ::-webkit-scrollbar-thumb {
   background: var(--phosphor);
-  border-radius: 0;
+  border-radius: 3px;
 }
 
 ::selection {
@@ -45,165 +38,33 @@
   color: var(--bg-deep);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background: var(--bg-deep);
-  color: var(--text-bright);
+  color: #ffffff;
   font-family: 'JetBrains Mono', monospace;
   overflow-x: hidden;
 }
 
-/* Noise texture overlay */
-.noise-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  pointer-events: none;
-  opacity: 0.03;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* Scan lines */
-.scanlines {
-  position: fixed;
-  inset: 0;
-  z-index: 99;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.15) 2px,
-    rgba(0, 0, 0, 0.15) 4px
-  );
-}
-
-/* CRT flicker */
-@keyframes flicker {
-  0%, 100% { opacity: 1; }
-  92% { opacity: 1; }
-  93% { opacity: 0.8; }
-  94% { opacity: 1; }
-  97% { opacity: 0.9; }
-  98% { opacity: 1; }
-}
-
-.crt-flicker {
-  animation: flicker 4s infinite;
-}
-
-/* Glitch effect */
-@keyframes glitch {
-  0%, 100% {
-    transform: translate(0);
-    text-shadow: -2px 0 var(--magenta), 2px 0 var(--cyan);
-  }
-  20% {
-    transform: translate(-2px, 1px);
-    text-shadow: 2px 0 var(--magenta), -2px 0 var(--cyan);
-  }
-  40% {
-    transform: translate(2px, -1px);
-    text-shadow: -2px 0 var(--cyan), 2px 0 var(--magenta);
-  }
-  60% {
-    transform: translate(-1px, 2px);
-    text-shadow: 2px 0 var(--cyan), -2px 0 var(--magenta);
-  }
-  80% {
-    transform: translate(1px, -2px);
-    text-shadow: -2px 0 var(--magenta), 2px 0 var(--cyan);
+/* Smooth backdrop blur for glass cards */
+@supports (backdrop-filter: blur(20px)) {
+  .backdrop-blur-xl {
+    backdrop-filter: blur(20px);
   }
 }
 
-.glitch-text {
-  animation: glitch 3s infinite;
-}
-
-.glitch-text:hover {
-  animation: glitch 0.3s infinite;
-}
-
-/* Radar sweep */
-@keyframes radar-sweep {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.radar-sweep {
-  animation: radar-sweep 2s linear infinite;
-}
-
-/* Pulse glow */
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 20px var(--phosphor), 0 0 40px rgba(0, 255, 65, 0.3), inset 0 0 20px rgba(0, 255, 65, 0.1);
-  }
-  50% {
-    box-shadow: 0 0 30px var(--phosphor), 0 0 60px rgba(0, 255, 65, 0.4), inset 0 0 30px rgba(0, 255, 65, 0.15);
-  }
-}
-
-.pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
-}
-
-/* Typing cursor */
-@keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
-}
-
-.cursor-blink::after {
-  content: '█';
-  animation: blink 1s step-end infinite;
-  color: var(--phosphor);
-}
-
-/* Boot text animation */
-@keyframes typewriter {
-  from { width: 0; }
-  to { width: 100%; }
-}
-
-/* Grid background */
-.grid-bg {
-  background-image:
-    linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 65, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-/* Gradient borders */
-.gradient-border {
-  position: relative;
-}
-
-.gradient-border::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  background: linear-gradient(135deg, var(--phosphor), transparent 50%, var(--cyan));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* Data stream effect */
-@keyframes data-stream {
-  0% { background-position: 0% 0%; }
-  100% { background-position: 0% 100%; }
-}
-
-.data-stream {
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(0, 255, 65, 0.1) 50%,
-    transparent 100%
-  );
-  background-size: 100% 200%;
-  animation: data-stream 2s linear infinite;
+/* Canvas performance optimization */
+canvas {
+  touch-action: none;
 }
